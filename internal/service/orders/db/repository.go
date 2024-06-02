@@ -1,0 +1,477 @@
+package db
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jinzhu/copier"
+	"log/slog"
+	"time"
+	"wbLvL0/internal/models"
+	"wbLvL0/internal/service/orders"
+	"wbLvL0/internal/service/orders/db/dbModels"
+	"wbLvL0/pkg/client/postgreSQL"
+)
+
+const (
+	RWTimeout       = 5 * time.Second
+	GetCacheTimeout = 5 * time.Second
+)
+
+type repository struct {
+	Client postgreSQL.Client
+	Logger *slog.Logger
+}
+
+func NewRepository(client postgreSQL.Client, logger *slog.Logger) orders.Repository {
+	return &repository{
+		Client: client,
+		Logger: logger,
+	}
+}
+
+func (r *repository) CreateFullOrder(order models.Order) error {
+	ctx, cancel := context.WithTimeout(context.Background(), RWTimeout)
+	defer cancel()
+
+	tx, err := r.Client.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	paymentID, err := r.CreatePayment(ctx, order.Payment)
+	if err != nil {
+		return err
+	}
+
+	deliveryID, err := r.CreateDelivery(ctx, order.Delivery)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range order.Items {
+		if err := r.CreateItem(ctx, item, order.OrderUid); err != nil {
+			return err
+		}
+	}
+
+	return r.CreateOrder(ctx, order, deliveryID, paymentID)
+}
+
+func (r *repository) CreateOrder(ctx context.Context, order models.Order, deliveryID int, paymentID int) error {
+	var (
+		dbOrder dbModels.Order
+		id      int
+	)
+	if err := copier.Copy(&dbOrder, &order); err != nil {
+		return err
+	}
+
+	if err := r.Client.QueryRow(ctx, CreateOrderQuery,
+		dbOrder.OrderUid,
+		dbOrder.TrackNumber,
+		dbOrder.Entry,
+		deliveryID,
+		paymentID,
+		dbOrder.Locale,
+		dbOrder.InternalSignature,
+		dbOrder.CustomerId,
+		dbOrder.DeliveryService,
+		dbOrder.Shardkey,
+		dbOrder.SmId,
+		dbOrder.DateCreated,
+		dbOrder.OofShard,
+	).Scan(&id); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return newErr
+
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (r *repository) GetOneOrder(uid string) (dbModels.Order, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), RWTimeout)
+	defer cancel()
+
+	order := dbModels.Order{OrderUid: uid}
+	if err := r.Client.QueryRow(ctx, SelectOrderQuery, uid).Scan(
+		&order.OrderID,
+		&order.TrackNumber,
+		&order.Entry,
+		&order.DeliveryID,
+		&order.PaymentID,
+		&order.Locale,
+		&order.InternalSignature,
+		&order.CustomerId,
+		&order.DeliveryService,
+		&order.Shardkey,
+		&order.SmId,
+		&order.DateCreated,
+		&order.OofShard,
+	); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return dbModels.Order{}, newErr
+
+		}
+		return dbModels.Order{}, err
+	}
+
+	return order, nil
+}
+
+func (r *repository) GetAllOrders() ([]dbModels.Order, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), RWTimeout)
+	defer cancel()
+
+	rows, err := r.Client.Query(ctx, SelectOrdersQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	fullOrders := make([]dbModels.Order, 0)
+	for rows.Next() {
+		var order dbModels.Order
+
+		if err := rows.Scan(
+			order.OrderID,
+			order.OrderUid,
+			order.TrackNumber,
+			order.Entry,
+			order.DeliveryID,
+			order.PaymentID,
+			order.Locale,
+			order.InternalSignature,
+			order.CustomerId,
+			order.DeliveryService,
+			order.Shardkey,
+			order.SmId,
+			order.DateCreated,
+			order.OofShard,
+		); err != nil {
+			return nil, err
+		}
+
+		fullOrders = append(fullOrders, order)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return fullOrders, nil
+}
+
+func (r *repository) CreatePayment(ctx context.Context, model models.Payment) (int, error) {
+	var (
+		dbPayment dbModels.Payment
+		id        int
+	)
+	if err := copier.Copy(&dbPayment, &model); err != nil {
+		return 0, err
+	}
+
+	if err := r.Client.QueryRow(ctx, CreatePaymentQuery,
+		dbPayment.PaymentID,
+		dbPayment.Transaction,
+		dbPayment.RequestId,
+		dbPayment.Currency,
+		dbPayment.Provider,
+		dbPayment.Amount,
+		dbPayment.PaymentDt,
+		dbPayment.Bank,
+		dbPayment.DeliveryCost,
+		dbPayment.GoodsTotal,
+		dbPayment.CustomFee,
+	).Scan(&id); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return 0, newErr
+
+		}
+		return 0, err
+	}
+
+	return id, nil
+}
+
+func (r *repository) GetOnePayment(id int) (dbModels.Payment, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), RWTimeout)
+	defer cancel()
+
+	dbPayment := dbModels.Payment{PaymentID: id}
+	if err := r.Client.QueryRow(ctx, SelectPaymentQuery, id).Scan(
+		&dbPayment.Transaction,
+		&dbPayment.RequestId,
+		&dbPayment.Currency,
+		&dbPayment.Provider,
+		&dbPayment.Amount,
+		&dbPayment.PaymentDt,
+		&dbPayment.Bank,
+		&dbPayment.DeliveryCost,
+		&dbPayment.GoodsTotal,
+		&dbPayment.CustomFee,
+	); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return dbModels.Payment{}, newErr
+
+		}
+		return dbModels.Payment{}, err
+	}
+
+	return dbPayment, nil
+}
+
+/*func (r *repository) GetAllPayments(ctx context.Context) ([]Payment, error) {
+	rows, err := r.Client.Query(ctx, SelectPaymentsQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	payments := make([]Payment, 0)
+	for rows.Next() {
+		var OnePayment Payment
+
+		if err := rows.Scan(
+			&OnePayment.PaymentID,
+			&OnePayment.Transaction,
+			&OnePayment.RequestId,
+			&OnePayment.Currency,
+			&OnePayment.Provider,
+			&OnePayment.Amount,
+			&OnePayment.PaymentDt,
+			&OnePayment.Bank,
+			&OnePayment.DeliveryCost,
+			&OnePayment.GoodsTotal,
+			&OnePayment.CustomFee,
+		); err != nil {
+			return nil, err
+		}
+
+		payments = append(payments, OnePayment)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return payments, nil
+}*/
+
+func (r *repository) CreateDelivery(ctx context.Context, model models.Delivery) (int, error) {
+	var (
+		dbDelivery dbModels.Delivery
+		id         int
+	)
+	if err := copier.Copy(&dbDelivery, &model); err != nil {
+		return 0, err
+	}
+
+	if err := r.Client.QueryRow(ctx, CreateDeliveryQuery,
+		dbDelivery.Name,
+		dbDelivery.Phone,
+		dbDelivery.Zip,
+		dbDelivery.City,
+		dbDelivery.Address,
+		dbDelivery.Region,
+		dbDelivery.Email,
+	).Scan(&id); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return 0, newErr
+
+		}
+		return 0, err
+	}
+
+	return id, nil
+}
+
+func (r *repository) GetOneDelivery(id int) (dbModels.Delivery, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), RWTimeout)
+	defer cancel()
+
+	delivery := dbModels.Delivery{DeliveryID: id}
+	if err := r.Client.QueryRow(ctx, SelectDeliveryQuery, id).Scan(
+		&delivery.Name,
+		&delivery.Phone,
+		&delivery.Zip,
+		&delivery.City,
+		&delivery.Address,
+		&delivery.Region,
+		&delivery.Email,
+	); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return dbModels.Delivery{}, newErr
+
+		}
+		return dbModels.Delivery{}, err
+	}
+
+	return delivery, nil
+}
+
+/*func (r *repository) GetAllDelivery(ctx context.Context) ([]Delivery, error) {
+	rows, err := r.Client.Query(ctx, SelectDeliveriesQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	deliveries := make([]Delivery, 0)
+	for rows.Next() {
+		var delivery Delivery
+
+		if err := rows.Scan(
+			&delivery.DeliveryID,
+			&delivery.Name,
+			&delivery.Phone,
+			&delivery.Zip,
+			&delivery.City,
+			&delivery.Address,
+			&delivery.Region,
+			&delivery.Email,
+		); err != nil {
+			return nil, err
+		}
+
+		deliveries = append(deliveries, delivery)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return deliveries, nil
+}*/
+
+func (r *repository) CreateItem(ctx context.Context, item models.Item, orderUID string) error {
+	var dbItem dbModels.Delivery
+	if err := copier.Copy(&dbItem, &item); err != nil {
+		return err
+	}
+
+	_, err := r.Client.Exec(ctx, CreateItemQuery,
+		orderUID,
+		item.ChrtId,
+		item.TrackNumber,
+		item.Price,
+		item.Rid,
+		item.Name,
+		item.Sale,
+		item.Size,
+		item.TotalPrice,
+		item.NmId,
+		item.Brand,
+		item.Status,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return newErr
+
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (r *repository) GetOrderItems(orderUID string) ([]dbModels.Item, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), RWTimeout)
+	defer cancel()
+
+	rows, err := r.Client.Query(ctx, SelectItemsQuery, orderUID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]dbModels.Item, 0)
+	for rows.Next() {
+		var item dbModels.Item
+		if err := rows.Scan(
+			&item.ItemID,
+			&item.OrderUID,
+			&item.ChrtId,
+			&item.TrackNumber,
+			&item.Price,
+			&item.Rid,
+			&item.Name,
+			&item.Sale,
+			&item.Size,
+			&item.TotalPrice,
+			&item.NmId,
+			&item.Brand,
+			&item.Status,
+		); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) {
+				newErr := fmt.Errorf(
+					fmt.Sprintf(
+						"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+					))
+				return nil, newErr
+
+			}
+			return nil, err
+		}
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+func (r *repository) CheckCache() (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), GetCacheTimeout)
+	defer cancel()
+
+	var flag bool
+	if err := r.Client.QueryRow(ctx, CheckCacheQuery).Scan(&flag); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			newErr := fmt.Errorf(
+				fmt.Sprintf(
+					"SQL Error: %s, Detail: %s, Where: %s", pgErr.Message, pgErr.Detail, pgErr.Where,
+				))
+			return flag, newErr
+
+		}
+		return flag, err
+	}
+	return flag, nil
+}

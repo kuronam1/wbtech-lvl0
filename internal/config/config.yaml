@@ -1,0 +1,15 @@
+env: "local"
+httpServer:
+  addr: localhost
+  port: 8080
+  timeout: 4s
+  idleTimeout: 15s
+pg:
+  login: postgres
+  password: Rtyuehe1223
+  addr: localhost
+  port: 5432
+  dbName: WBTestDB
+  maxConn: 20
+  minConn: 5
+natsStream:

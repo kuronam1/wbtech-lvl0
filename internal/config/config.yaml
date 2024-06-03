@@ -3,7 +3,7 @@ httpServer:
   addr: localhost
   port: 8080
   timeout: 4s
-  idleTimeout: 15s
+  shutdownTimeout: 10s
 pg:
   login: postgres
   password: Rtyuehe1223

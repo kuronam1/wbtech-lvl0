@@ -1,42 +1,40 @@
-package service
+package storage
 
 import (
-	"context"
+	"fmt"
 	"github.com/jinzhu/copier"
 	"log"
 	"log/slog"
 	"wbLvL0/internal/errors"
-	"wbLvL0/internal/models"
-	"wbLvL0/internal/service/orders"
-	"wbLvL0/internal/service/orders/db"
+	"wbLvL0/internal/storage/orders/db"
+	"wbLvL0/internal/storage/orders/models"
 	"wbLvL0/pkg/cache"
 	"wbLvL0/pkg/client/postgreSQL"
 )
 
-type Service struct {
-	OrderRepo orders.Repository
-	Cache     cache.Caсher
-	Logger    *slog.Logger
+type Storage interface {
+	MustGetCache()
+	GetOrderByUID(uid string) (models.Order, error)
 }
 
-func New(PGClient postgreSQL.Client, logger *slog.Logger) *Service {
+func New(PGClient postgreSQL.Client, logger *slog.Logger) Storage {
 
-	return &Service{
-		OrderRepo: db.NewRepository(PGClient),
+	return &Store{
+		OrderRepo: db.NewRepository(PGClient, logger),
 		Cache:     cache.InitCache(),
 		Logger:    logger,
 	}
 }
 
-func (s *Service) MustGetCache(ctx context.Context) {
-	cacheFounded, err := s.OrderRepo.CheckCache(ctx)
+func (s *Store) MustGetCache() {
+	cacheFounded, err := s.OrderRepo.CheckCache()
 	if err != nil {
 		s.Logger.Error("error while getting orders", errors.WrapLogErr(err))
 		log.Fatal("cannot get cache")
 	}
 
 	if cacheFounded {
-		AllOrders, err := s.OrderRepo.GetAllOrders(ctx)
+		AllOrders, err := s.OrderRepo.GetAllOrders()
 		if err != nil {
 			s.Logger.Error("error while getting orders", errors.WrapLogErr(err))
 			log.Fatal("cannot get cache")
@@ -49,7 +47,7 @@ func (s *Service) MustGetCache(ctx context.Context) {
 				log.Fatal("cannot get cache")
 			}
 
-			oneDelivery, err := s.OrderRepo.GetOneDelivery(ctx, order.OrderID)
+			oneDelivery, err := s.OrderRepo.GetOneDelivery(order.OrderID)
 			if err != nil {
 				s.Logger.Error("error while getting order's delivery", errors.WrapLogErr(err))
 				log.Fatal("cannot get cache")
@@ -61,7 +59,7 @@ func (s *Service) MustGetCache(ctx context.Context) {
 				log.Fatal("cannot get cache")
 			}
 
-			onePayment, err := s.OrderRepo.GetOnePayment(ctx, order.OrderID)
+			onePayment, err := s.OrderRepo.GetOnePayment(order.OrderID)
 			if err != nil {
 				s.Logger.Error("error while getting order's payment", errors.WrapLogErr(err))
 				log.Fatal("cannot get cache")
@@ -73,7 +71,7 @@ func (s *Service) MustGetCache(ctx context.Context) {
 				log.Fatal("cannot get cache")
 			}
 
-			orderItems, err := s.OrderRepo.GetOrderItems(ctx, order.OrderUid)
+			orderItems, err := s.OrderRepo.GetOrderItems(order.OrderUid)
 			if err != nil {
 				s.Logger.Error("error while getting order's items", errors.WrapLogErr(err))
 				log.Fatal("cannot get cache")
@@ -92,4 +90,16 @@ func (s *Service) MustGetCache(ctx context.Context) {
 			s.Cache.Set(order.OrderUid, order)
 		}
 	}
+}
+
+func (s *Store) GetOrderByUID(uid string) (models.Order, error) {
+	order, _ := s.Cache.Get(uid)
+
+	o, ok := order.(models.Order)
+	if !ok {
+		s.Logger.Error("error while casting", "order", order)
+		return models.Order{}, fmt.Errorf("error while casting")
+	}
+
+	return o, nil
 }

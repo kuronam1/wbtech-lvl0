@@ -1,15 +1,16 @@
 package msgBroker
 
 import (
+	"context"
 	"fmt"
 	"github.com/nats-io/stan.go"
 	"wbLvL0/internal/config"
-	"wbLvL0/internal/models"
+	"wbLvL0/internal/storage/orders/models"
 )
 
 type Broker interface {
 	Publish(subject string, data []byte) error
-	Subscribe(subject string, cb func(data models.Order)) (func() error, error)
+	Subscribe(ctx context.Context, subject string, cb func(data models.Order) error) error
 }
 
 func NewClient(cfg config.NatsStream) (stan.Conn, error) {

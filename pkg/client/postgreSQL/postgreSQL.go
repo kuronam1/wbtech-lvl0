@@ -6,7 +6,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"time"
 	"wbLvL0/internal/config"
+)
+
+const (
+	connectPGTimeout = 5 * time.Second
 )
 
 type Client interface {
@@ -18,7 +23,10 @@ type Client interface {
 	Ping(ctx context.Context) error
 }
 
-func NewClient(ctx context.Context, cfg config.PG) (*pgxpool.Pool, error) {
+func NewClient(cfg config.PG) (*pgxpool.Pool, error) {
+	ctx, cancelPG := context.WithTimeout(context.Background(), connectPGTimeout)
+	defer cancelPG()
+
 	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		cfg.Login,
 		cfg.Password,

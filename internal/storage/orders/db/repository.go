@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jinzhu/copier"
 	"log/slog"
 	"time"
-	"wbLvL0/internal/models"
-	"wbLvL0/internal/service/orders"
-	"wbLvL0/internal/service/orders/db/dbModels"
+	"wbLvL0/internal/storage/orders"
+	"wbLvL0/internal/storage/orders/db/dbModels"
+	"wbLvL0/internal/storage/orders/models"
 	"wbLvL0/pkg/client/postgreSQL"
 )
 
@@ -39,27 +40,32 @@ func (r *repository) CreateFullOrder(order models.Order) error {
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback(ctx)
 
-	paymentID, err := r.CreatePayment(ctx, order.Payment)
+	paymentID, err := r.CreatePayment(ctx, tx, order.Payment)
 	if err != nil {
 		return err
 	}
 
-	deliveryID, err := r.CreateDelivery(ctx, order.Delivery)
+	deliveryID, err := r.CreateDelivery(ctx, tx, order.Delivery)
 	if err != nil {
 		return err
 	}
 
 	for _, item := range order.Items {
-		if err := r.CreateItem(ctx, item, order.OrderUid); err != nil {
+		if err := r.CreateItem(ctx, tx, item, order.OrderUid); err != nil {
 			return err
 		}
 	}
 
-	return r.CreateOrder(ctx, order, deliveryID, paymentID)
+	if err := r.CreateOrder(ctx, tx, order, deliveryID, paymentID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
-func (r *repository) CreateOrder(ctx context.Context, order models.Order, deliveryID int, paymentID int) error {
+func (r *repository) CreateOrder(ctx context.Context, tx pgx.Tx, order models.Order, deliveryID int, paymentID int) error {
 	var (
 		dbOrder dbModels.Order
 		id      int
@@ -68,7 +74,7 @@ func (r *repository) CreateOrder(ctx context.Context, order models.Order, delive
 		return err
 	}
 
-	if err := r.Client.QueryRow(ctx, CreateOrderQuery,
+	if err := tx.QueryRow(ctx, CreateOrderQuery,
 		dbOrder.OrderUid,
 		dbOrder.TrackNumber,
 		dbOrder.Entry,
@@ -175,7 +181,7 @@ func (r *repository) GetAllOrders() ([]dbModels.Order, error) {
 	return fullOrders, nil
 }
 
-func (r *repository) CreatePayment(ctx context.Context, model models.Payment) (int, error) {
+func (r *repository) CreatePayment(ctx context.Context, tx pgx.Tx, model models.Payment) (int, error) {
 	var (
 		dbPayment dbModels.Payment
 		id        int
@@ -184,7 +190,7 @@ func (r *repository) CreatePayment(ctx context.Context, model models.Payment) (i
 		return 0, err
 	}
 
-	if err := r.Client.QueryRow(ctx, CreatePaymentQuery,
+	if err := tx.QueryRow(ctx, CreatePaymentQuery,
 		dbPayment.PaymentID,
 		dbPayment.Transaction,
 		dbPayment.RequestId,
@@ -244,43 +250,7 @@ func (r *repository) GetOnePayment(id int) (dbModels.Payment, error) {
 	return dbPayment, nil
 }
 
-/*func (r *repository) GetAllPayments(ctx context.Context) ([]Payment, error) {
-	rows, err := r.Client.Query(ctx, SelectPaymentsQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	payments := make([]Payment, 0)
-	for rows.Next() {
-		var OnePayment Payment
-
-		if err := rows.Scan(
-			&OnePayment.PaymentID,
-			&OnePayment.Transaction,
-			&OnePayment.RequestId,
-			&OnePayment.Currency,
-			&OnePayment.Provider,
-			&OnePayment.Amount,
-			&OnePayment.PaymentDt,
-			&OnePayment.Bank,
-			&OnePayment.DeliveryCost,
-			&OnePayment.GoodsTotal,
-			&OnePayment.CustomFee,
-		); err != nil {
-			return nil, err
-		}
-
-		payments = append(payments, OnePayment)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return payments, nil
-}*/
-
-func (r *repository) CreateDelivery(ctx context.Context, model models.Delivery) (int, error) {
+func (r *repository) CreateDelivery(ctx context.Context, tx pgx.Tx, model models.Delivery) (int, error) {
 	var (
 		dbDelivery dbModels.Delivery
 		id         int
@@ -289,7 +259,7 @@ func (r *repository) CreateDelivery(ctx context.Context, model models.Delivery) 
 		return 0, err
 	}
 
-	if err := r.Client.QueryRow(ctx, CreateDeliveryQuery,
+	if err := tx.QueryRow(ctx, CreateDeliveryQuery,
 		dbDelivery.Name,
 		dbDelivery.Phone,
 		dbDelivery.Zip,
@@ -342,46 +312,13 @@ func (r *repository) GetOneDelivery(id int) (dbModels.Delivery, error) {
 	return delivery, nil
 }
 
-/*func (r *repository) GetAllDelivery(ctx context.Context) ([]Delivery, error) {
-	rows, err := r.Client.Query(ctx, SelectDeliveriesQuery)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	deliveries := make([]Delivery, 0)
-	for rows.Next() {
-		var delivery Delivery
-
-		if err := rows.Scan(
-			&delivery.DeliveryID,
-			&delivery.Name,
-			&delivery.Phone,
-			&delivery.Zip,
-			&delivery.City,
-			&delivery.Address,
-			&delivery.Region,
-			&delivery.Email,
-		); err != nil {
-			return nil, err
-		}
-
-		deliveries = append(deliveries, delivery)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return deliveries, nil
-}*/
-
-func (r *repository) CreateItem(ctx context.Context, item models.Item, orderUID string) error {
+func (r *repository) CreateItem(ctx context.Context, tx pgx.Tx, item models.Item, orderUID string) error {
 	var dbItem dbModels.Delivery
 	if err := copier.Copy(&dbItem, &item); err != nil {
 		return err
 	}
 
-	_, err := r.Client.Exec(ctx, CreateItemQuery,
+	_, err := tx.Exec(ctx, CreateItemQuery,
 		orderUID,
 		item.ChrtId,
 		item.TrackNumber,

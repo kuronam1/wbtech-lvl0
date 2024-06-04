@@ -7,12 +7,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"wbLvL0/internal/appErrors"
 	"wbLvL0/internal/broker"
 	"wbLvL0/internal/config"
-	"wbLvL0/internal/errors"
 	"wbLvL0/internal/router"
 	"wbLvL0/internal/storage"
-	"wbLvL0/internal/storage/orders/db"
 	"wbLvL0/pkg/client/msgBroker"
 	"wbLvL0/pkg/client/postgreSQL"
 	"wbLvL0/pkg/logging"
@@ -29,9 +28,6 @@ func Run(cfg *config.Config) {
 	}
 	logger.Info("[PGClient] connection established")
 
-	repo := db.NewRepository(PGClient, logger)
-	logger.Info("[Repository] initialized")
-
 	BrClient, err := msgBroker.NewClient(cfg.NatsStream)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("[BrClient] error while initializing new nats connetction [%s]", err))
@@ -41,17 +37,18 @@ func Run(cfg *config.Config) {
 	br := broker.New(BrClient, logger)
 	logger.Info("[Broker] initialized")
 
-	ctxStan, cancelStan := context.WithCancel(context.Background())
-	//go st.Publish()
-	go br.Subscribe(ctxStan, cfg.NatsStream.ClusterID, repo.CreateFullOrder)
-	logger.Info("[Broker] listening to cluster: %s", cfg.NatsStream.ClusterID)
-
 	st := storage.New(PGClient, logger)
 	st.MustGetCache()
 	logger.Info("[Storage] storage initialized")
 
 	rt := router.InitRouter(st, logger)
 	logger.Info("[Router] routes and html files initialized")
+
+	ctxStan, cancelStan := context.WithCancel(context.Background())
+	br.Subscribe(ctxStan, cfg.NatsStream.ClusterID, st.CreateOrder)
+	logger.Info("[Broker] listening to cluster: %s", cfg.NatsStream.ClusterID)
+	br.Publish(ctxStan, cfg.NatsStream.ClusterID)
+	logger.Info("[Broker] publishing to cluster: %s", cfg.NatsStream.ClusterID)
 
 	httpServer := server.New(rt, cfg.HttpServer)
 	logger.Info("[Server] server started on addr: %s:%s", cfg.HttpServer.Host, cfg.HttpServer.Port)
@@ -62,9 +59,9 @@ func Run(cfg *config.Config) {
 	case stop := <-interrupt:
 		logger.Error(fmt.Sprintf("[Run] os signal: %s", stop.String()))
 	case svErr := <-httpServer.Notify:
-		logger.Error(fmt.Sprintf("[Run] http signal: %s", errors.WrapLogErr(svErr)))
+		logger.Error(fmt.Sprintf("[Run] http signal: %s", appErrors.WrapLogErr(svErr)))
 	case brErr := <-br.Notify:
-		logger.Error(fmt.Sprintf("[Run] broker signal: %s", errors.WrapLogErr(brErr)))
+		logger.Error(fmt.Sprintf("[Run] broker signal: %s", appErrors.WrapLogErr(brErr)))
 	}
 
 	defer func() {
@@ -72,9 +69,9 @@ func Run(cfg *config.Config) {
 		_ = PGClient.Close
 		_ = br.Conn.Close()
 	}()
-	logger.Error("[Run] shutting down server")
+	logger.Info("[Run] shutting down server")
 	err = httpServer.Shutdown()
 	if err != nil {
-		logger.Error(fmt.Sprintf("[Server] Stopped - http.Server.Shutdown: %s", errors.WrapLogErr(err)))
+		logger.Error(fmt.Sprintf("[Server] Stopped - http.Server.Shutdown: %s", appErrors.WrapLogErr(err)))
 	}
 }

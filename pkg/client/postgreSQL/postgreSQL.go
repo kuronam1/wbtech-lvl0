@@ -27,13 +27,12 @@ func NewClient(cfg config.PG) (*pgxpool.Pool, error) {
 	ctx, cancelPG := context.WithTimeout(context.Background(), connectPGTimeout)
 	defer cancelPG()
 
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	connString := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
 		cfg.Login,
 		cfg.Password,
 		cfg.Host,
 		cfg.Port,
-		cfg.DBName,
-		cfg.SslMode)
+		cfg.DBName)
 
 	c, err := pgxpool.ParseConfig(connString)
 	if err != nil {

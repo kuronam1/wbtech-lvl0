@@ -7,8 +7,11 @@ import (
 	"wbLvL0/internal/storage"
 )
 
+const (
+	homePageUrl = "/"
+)
+
 type Handler interface {
-	HomePage(c *gin.Context)
 	GetOrder(c *gin.Context)
 }
 
@@ -19,26 +22,18 @@ func New(store storage.Storage, logger *slog.Logger) Handler {
 	}
 }
 
-func (h *handler) RegisterRoutes(router *gin.Engine) {
-	router.GET(homePageUrl)
-	router.GET(orderPageUrl)
-}
-
-func (h *handler) HomePage(c *gin.Context) {
+func (h *handler) GetOrder(c *gin.Context) {
 	if c.Request.URL.Path != homePageUrl {
 		c.AbortWithStatusJSON(404, gin.H{
 			"error": "page not found",
 		})
 	}
-	c.HTML(http.StatusOK, "", gin.H{
-		"With order": false,
-	})
-}
 
-func (h *handler) GetOrder(c *gin.Context) {
 	uid, found := c.GetQuery("uid")
 	if !found {
-		c.Redirect(http.StatusMovedPermanently, homePageUrl)
+		c.HTML(http.StatusOK, "", gin.H{
+			"With order": false,
+		})
 		return
 	}
 
@@ -50,7 +45,7 @@ func (h *handler) GetOrder(c *gin.Context) {
 		return
 	}
 
-	c.HTML(http.StatusOK, "", gin.H{
+	c.HTML(http.StatusOK, "index.html", gin.H{
 		"With order": true,
 		"Order":      order,
 	})

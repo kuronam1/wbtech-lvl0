@@ -9,16 +9,17 @@ import (
 )
 
 const (
-	homePageUrl  = "/"
-	orderPageUrl = "/order"
+	homePageUrl = "/"
 )
 
 func InitRouter(st storage.Storage, log *slog.Logger) http.Handler {
 	router := gin.Default()
 
+	router.LoadHTMLFiles("render/html")
+	router.Static("/static/css", "./static/css")
+
 	h := handlers.New(st, log)
-	router.GET(homePageUrl, h.HomePage)
-	router.GET(orderPageUrl, h.GetOrder)
+	router.GET(homePageUrl, h.GetOrder)
 
 	return router
 }

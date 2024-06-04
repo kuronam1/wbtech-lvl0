@@ -44,13 +44,13 @@ SELECT delivery_id, delivery_name, phone, zip, city, address, region, email
 FROM delivery
 `
 	CreateItemQuery = `
-INSERT INTO item(order_id, chrt_id, track_number, price, rid, item_name, sale, item_size, total_price, nm_id, brand, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $9, $10, $11, $12, $13)
+INSERT INTO item(order_uid, chrt_id, track_number, price, rid, item_name, sale, item_size, total_price, nm_id, brand, status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 `
 	SelectItemsQuery = `
-SELECT item_id, order_id, chrt_id, track_number, price, rid, item_name, sale, item_size, total_price, nm_id, brand, status
+SELECT item_id, order_uid, chrt_id, track_number, price, rid, item_name, sale, item_size, total_price, nm_id, brand, status
 FROM item
-WHERE order_id = $1
+WHERE order_uid = $1
 `
 
 	CheckCacheQuery = `SELECT EXISTS(SELECT 1 FROM orders)`

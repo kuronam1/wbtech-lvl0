@@ -9,6 +9,7 @@ import (
 	"github.com/jinzhu/copier"
 	"log/slog"
 	"time"
+	"wbLvL0/internal/appErrors"
 	"wbLvL0/internal/storage/orders"
 	"wbLvL0/internal/storage/orders/db/dbModels"
 	"wbLvL0/internal/storage/orders/models"
@@ -38,27 +39,32 @@ func (r *repository) CreateFullOrder(order models.Order) error {
 
 	tx, err := r.Client.Begin(ctx)
 	if err != nil {
+		r.Logger.Error("[repository] error while creating transaction: ", appErrors.WrapLogErr(err))
 		return err
 	}
 	defer tx.Rollback(ctx)
 
 	paymentID, err := r.CreatePayment(ctx, tx, order.Payment)
 	if err != nil {
+		r.Logger.Error("[repository] error while creating payment: ", appErrors.WrapLogErr(err))
 		return err
 	}
 
 	deliveryID, err := r.CreateDelivery(ctx, tx, order.Delivery)
 	if err != nil {
+		r.Logger.Error("[repository] error while creating delivery: ", appErrors.WrapLogErr(err))
 		return err
 	}
 
 	for _, item := range order.Items {
 		if err := r.CreateItem(ctx, tx, item, order.OrderUid); err != nil {
+			r.Logger.Error("[repository] error while creating Item: ", appErrors.WrapLogErr(err))
 			return err
 		}
 	}
 
 	if err := r.CreateOrder(ctx, tx, order, deliveryID, paymentID); err != nil {
+		r.Logger.Error("[repository] error while creating dbOrder: ", appErrors.WrapLogErr(err))
 		return err
 	}
 
@@ -191,7 +197,6 @@ func (r *repository) CreatePayment(ctx context.Context, tx pgx.Tx, model models.
 	}
 
 	if err := tx.QueryRow(ctx, CreatePaymentQuery,
-		dbPayment.PaymentID,
 		dbPayment.Transaction,
 		dbPayment.RequestId,
 		dbPayment.Currency,
@@ -313,10 +318,12 @@ func (r *repository) GetOneDelivery(id int) (dbModels.Delivery, error) {
 }
 
 func (r *repository) CreateItem(ctx context.Context, tx pgx.Tx, item models.Item, orderUID string) error {
-	var dbItem dbModels.Delivery
+	var dbItem dbModels.Item
 	if err := copier.Copy(&dbItem, &item); err != nil {
 		return err
 	}
+
+	r.Logger.Debug(fmt.Sprintf("%v", dbItem))
 
 	_, err := tx.Exec(ctx, CreateItemQuery,
 		orderUID,

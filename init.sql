@@ -1,15 +1,15 @@
 CREATE TABLE IF NOT EXISTS payment (
-    payment_id SERIAL PRIMARY KEY
+    payment_id SERIAL PRIMARY KEY,
     transact VARCHAR NOT NULL,
-    requestId VARCHAR NOT NULL,
+    request_id VARCHAR NOT NULL,
     currency VARCHAR NOT NULL,
     provider VARCHAR NOT NULL,
     amount INTEGER NOT NULL,
-    paymentDt INTEGER NOT NULL,
+    payment_dt INTEGER NOT NULL,
     bank VARCHAR NOT NULL,
-    deliveryCost INTEGER NOT NULL,
-    goodsTotal INTEGER NOT NULL,
-    customFee INTEGER NOT NULL
+    delivery_cost INTEGER NOT NULL,
+    goods_total INTEGER NOT NULL,
+    custom_fee INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS delivery (
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS delivery (
     city VARCHAR NOT NULL,
     address VARCHAR NOT NULL,
     region VARCHAR NOT NULL,
-    email VARCHAR NOT NULL,
+    email VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -30,28 +30,28 @@ CREATE TABLE IF NOT EXISTS orders (
     entry VARCHAR NOT NULL,
     delivery_id INTEGER REFERENCES delivery(delivery_id),
     payment_id INTEGER REFERENCES payment(payment_id),
-    Locale VARCHAR NOT NULL,
-    InternalSignature VARCHAR,
-    CustomerId VARCHAR NOT NULL,
-    DeliveryService VARCHAR NOT NULL,
-    Shardkey VARCHAR NOT NULL,
-    SmId INTEGER NOT NULL,
-    DateCreated DATE NOT NULL,
-    OofShard VARCHAR NOT NULL
+    locale VARCHAR NOT NULL,
+    internal_signature VARCHAR,
+    customer_id VARCHAR NOT NULL,
+    delivery_service VARCHAR NOT NULL,
+    shard_key VARCHAR NOT NULL,
+    sm_id INTEGER NOT NULL,
+    date_created DATE NOT NULL,
+    oof_shard VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS item (
     item_id SERIAL PRIMARY KEY,
-    order_uid REFERENCES orders(order_uid),
-    ChrtId INTEGER NOT NULL,
-    TrackNumber VARCHAR NOT NULL,
-    Price INTEGER NOT NULL,
-    Rid VARCHAR NOT NULL,
+    order_uid VARCHAR REFERENCES orders(order_uid),
+    chrt_id INTEGER NOT NULL,
+    track_number VARCHAR NOT NULL,
+    price INTEGER NOT NULL,
+    rid VARCHAR NOT NULL,
     item_name VARCHAR NOT NULL,
-    Sale INTEGER NOT NULL,
+    sale INTEGER NOT NULL,
     item_Size VARCHAR NOT NULL,
-    TotalPrice INTEGER NOT NULL,
-    NmId INTEGER NOT NULL,
-    Brand VARCHAR NOT NULL,
-    Status INTEGER NOT NULL
+    total_price INTEGER NOT NULL,
+    nm_id INTEGER NOT NULL,
+    brand VARCHAR NOT NULL,
+    status INTEGER NOT NULL
 );

@@ -1,4 +1,4 @@
-package errors
+package appErrors
 
 import "log/slog"
 

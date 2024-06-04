@@ -40,10 +40,15 @@ func (s *Stan) Publish(ctx context.Context, subject string) {
 		}
 
 		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
 		counter := 0
 		for {
 			select {
 			case <-ticker.C:
+				if counter == len(data) {
+					return
+				}
 				msg := data[counter]
 				pubMsg, err := json.Marshal(msg)
 				if err != nil {
@@ -59,6 +64,7 @@ func (s *Stan) Publish(ctx context.Context, subject string) {
 					close(s.Notify)
 					return
 				}
+				counter++
 			case <-ctx.Done():
 				s.Logger.Info("[Pub] exiting")
 				return

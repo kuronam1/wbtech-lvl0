@@ -3,7 +3,6 @@ package broker
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/nats-io/stan.go"
 	"io"
@@ -76,10 +75,10 @@ func (s *Stan) Publish(ctx context.Context, subject string) {
 func (s *Stan) Subscribe(ctx context.Context, subject string, save func(data models.Order) error) {
 	go func() {
 		sub, err := s.Conn.Subscribe(subject, func(msg *stan.Msg) {
-			s.Logger.Info(fmt.Sprintf("recived message from cluster: %s", msg.Subject))
+			s.Logger.Info("[Sub]received message from cluster", "cluster id", msg.Subject)
 			order := models.Order{}
 			if err := json.Unmarshal(msg.Data, &order); err != nil {
-				s.Logger.Error("[Stan] error while parsing order", appErrors.WrapLogErr(err))
+				s.Logger.Error("[Sub] error while parsing order", appErrors.WrapLogErr(err))
 				return
 			}
 			validate := validator.New(validator.WithRequiredStructEnabled())
@@ -89,7 +88,7 @@ func (s *Stan) Subscribe(ctx context.Context, subject string, save func(data mod
 					s.logger.Error("error while validation: [%s]", appErrors.WrapLogErr(err))
 					return
 				}*/
-				s.Logger.Error("[Stan] error while validation: [%s]", appErrors.WrapLogErr(err))
+				s.Logger.Error("[Sub] error while validation: [%s]", appErrors.WrapLogErr(err))
 				for _, err := range err.(validator.ValidationErrors) {
 					s.Logger.Debug("%s", err.Namespace())
 					s.Logger.Debug("%s", err.Field())
@@ -106,13 +105,20 @@ func (s *Stan) Subscribe(ctx context.Context, subject string, save func(data mod
 				return
 			}
 
-			if err := save(order); err != nil {
-				s.Logger.Error("[Stan] error while saving massage", appErrors.WrapLogErr(err))
+			s.Logger.Info("[Sub] saving order")
+			err = save(order)
+			if err := msg.Ack(); err != nil {
+				s.Logger.Error("[Sub] msg.Ack", appErrors.WrapLogErr(err))
 				return
 			}
-		}, stan.DeliverAllAvailable())
+			if err != nil {
+				s.Logger.Error("[Sub] error while saving massage", appErrors.WrapLogErr(err))
+				return
+			}
+
+		}, stan.SetManualAckMode())
 		if err != nil {
-			s.Logger.Error("[Stan] error while subscribe", appErrors.WrapLogErr(err))
+			s.Logger.Error("[Sub] error while subscribe", appErrors.WrapLogErr(err))
 			s.Notify <- err
 			close(s.Notify)
 		}
@@ -121,7 +127,7 @@ func (s *Stan) Subscribe(ctx context.Context, subject string, save func(data mod
 
 		defer func() {
 			if err := sub.Unsubscribe(); err != nil {
-				s.Logger.Error("[Stan] error while unsubscribe", appErrors.WrapLogErr(err))
+				s.Logger.Error("[Sub] error while unsubscribe", appErrors.WrapLogErr(err))
 			}
 		}()
 	}()

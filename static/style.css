@@ -1,6 +1,6 @@
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
+    background-color: white;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -9,28 +9,32 @@ body {
 }
 
 .container {
-    background: #FF8000;
+    background: #B218A4;
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     width: 330px;
-    margin-top: 50px;
+    margin: auto 5px;
+    /*margin-top: 50px;*/
     box-sizing: border-box;
+    color: white;
 }
 
 .order {
-    background: #FF8000;
+    background: #650C6F;
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     width: 500px;
-    margin-top: auto;
+    margin: auto 0;
+    /*margin-top: auto;*/
     box-sizing: border-box;
 }
 
 h2 {
     text-align: center;
     margin-bottom: 20px;
+    color: white;
 }
 
 label {
@@ -51,7 +55,7 @@ textarea {
 button {
     width: 100%;
     padding: 10px;
-    background-color: #5cb85c;
+    background-color: #8D1793;
     color: white;
     border: none;
     border-radius: 3px;
@@ -60,5 +64,13 @@ button {
 }
 
 button:hover {
-    background-color: #4cae4c;
+    background-color: #5C096C;
+}
+
+ul {
+    color: white;
+}
+
+li {
+    color: white;
 }

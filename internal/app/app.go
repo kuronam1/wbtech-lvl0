@@ -18,7 +18,7 @@ import (
 	"wbLvL0/pkg/server"
 )
 
-func Run(cfg *config.Config) {
+func Run(cfg *config.Config, pubFlag *bool) {
 	logger := logging.InitLogger(cfg)
 	logger.Info("[Logger] initialized")
 
@@ -45,10 +45,14 @@ func Run(cfg *config.Config) {
 
 	ctxStan, cancelSubPub := context.WithCancel(context.Background())
 	br.Subscribe(ctxStan, cfg.NatsStream.ClusterID, st.CreateOrder)
-	logger.Info("[Run] listening to cluster: %s", cfg.NatsStream.ClusterID)
+	logger.Info("[Run] listening to cluster", "cluster id", cfg.NatsStream.ClusterID)
 
-	br.Publish(ctxStan, cfg.NatsStream.ClusterID)
-	logger.Info("[Run] publishing to cluster: %s", cfg.NatsStream.ClusterID)
+	if *pubFlag {
+		br.Publish(ctxStan, cfg.NatsStream.ClusterID)
+		logger.Info("[Run] publishing to cluster: %s", cfg.NatsStream.ClusterID)
+	} else {
+		logger.Info("[Run] pub is off")
+	}
 
 	httpServer := server.New(rt, cfg.HttpServer)
 	logger.Info("[Run] server started on addr: %s:%s", cfg.HttpServer.Host, cfg.HttpServer.Port)

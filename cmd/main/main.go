@@ -10,6 +10,7 @@ import (
 
 func main() {
 	var configPath string
+	f := flag.Bool("pub", false, "Enable pub")
 	flag.StringVar(&configPath, "cfg",
 		"./internal/config/config.yaml", "path to config file")
 	flag.Parse()
@@ -19,5 +20,5 @@ func main() {
 		log.Fatal(fmt.Errorf("error while reading config: %s", err.Error()))
 	}
 
-	app.Run(cfg)
+	app.Run(cfg, f)
 }

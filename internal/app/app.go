@@ -47,8 +47,8 @@ func Run(cfg *config.Config) {
 	br.Subscribe(ctxStan, cfg.NatsStream.ClusterID, st.CreateOrder)
 	logger.Info("[Run] listening to cluster: %s", cfg.NatsStream.ClusterID)
 
-	/*	br.Publish(ctxStan, cfg.NatsStream.ClusterID)
-		logger.Info("[Run] publishing to cluster: %s", cfg.NatsStream.ClusterID)*/
+	br.Publish(ctxStan, cfg.NatsStream.ClusterID)
+	logger.Info("[Run] publishing to cluster: %s", cfg.NatsStream.ClusterID)
 
 	httpServer := server.New(rt, cfg.HttpServer)
 	logger.Info("[Run] server started on addr: %s:%s", cfg.HttpServer.Host, cfg.HttpServer.Port)

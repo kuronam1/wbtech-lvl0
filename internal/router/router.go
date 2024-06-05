@@ -15,8 +15,8 @@ const (
 func InitRouter(st storage.Storage, log *slog.Logger) http.Handler {
 	router := gin.Default()
 
-	router.LoadHTMLFiles("render/html")
-	router.Static("/static/css", "./static/css")
+	router.LoadHTMLGlob("html/*")
+	router.Static("/static", "./static")
 
 	h := handlers.New(st, log)
 	router.GET(homePageUrl, h.GetOrder)

@@ -28,30 +28,30 @@ func Run(cfg *config.Config) {
 	}
 	logger.Info("[PGClient] connection established")
 
-	BrClient, err := msgBroker.NewClient(cfg.NatsStream)
+	BRClient, err := msgBroker.NewClient(cfg.NatsStream, logger)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("[BrClient] error while initializing new nats connetction [%s]", err))
 	}
-	logger.Info("[BRClient] connection established")
 
-	br := broker.New(BrClient, logger)
-	logger.Info("[Broker] initialized")
+	br := broker.NewBroker(BRClient, logger)
+	logger.Info("[Run] msgBroker initialized")
 
 	st := storage.New(PGClient, logger)
 	st.MustGetCache()
-	logger.Info("[Storage] storage initialized")
+	logger.Info("[Run] storage initialized")
 
 	rt := router.InitRouter(st, logger)
-	logger.Info("[Router] routes and html files initialized")
+	logger.Info("[Run] routes and html files initialized")
 
-	ctxStan, cancelStan := context.WithCancel(context.Background())
+	ctxStan, cancelSubPub := context.WithCancel(context.Background())
 	br.Subscribe(ctxStan, cfg.NatsStream.ClusterID, st.CreateOrder)
-	logger.Info("[Broker] listening to cluster: %s", cfg.NatsStream.ClusterID)
-	br.Publish(ctxStan, cfg.NatsStream.ClusterID)
-	logger.Info("[Broker] publishing to cluster: %s", cfg.NatsStream.ClusterID)
+	logger.Info("[Run] listening to cluster: %s", cfg.NatsStream.ClusterID)
+
+	/*	br.Publish(ctxStan, cfg.NatsStream.ClusterID)
+		logger.Info("[Run] publishing to cluster: %s", cfg.NatsStream.ClusterID)*/
 
 	httpServer := server.New(rt, cfg.HttpServer)
-	logger.Info("[Server] server started on addr: %s:%s", cfg.HttpServer.Host, cfg.HttpServer.Port)
+	logger.Info("[Run] server started on addr: %s:%s", cfg.HttpServer.Host, cfg.HttpServer.Port)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
@@ -61,14 +61,14 @@ func Run(cfg *config.Config) {
 	case svErr := <-httpServer.Notify:
 		logger.Error(fmt.Sprintf("[Run] http signal: %s", appErrors.WrapLogErr(svErr)))
 	case brErr := <-br.Notify:
-		logger.Error(fmt.Sprintf("[Run] broker signal: %s", appErrors.WrapLogErr(brErr)))
+		logger.Error(fmt.Sprintf("[Run] msgBroker signal: %s", appErrors.WrapLogErr(brErr)))
 	}
-
-	defer func() {
-		cancelStan()
-		_ = PGClient.Close
-		_ = br.Conn.Close()
-	}()
+	cancelSubPub()
+	logger.Info("[Run] closing sub and pub")
+	PGClient.Close()
+	logger.Info("[Run] closing PG client connection")
+	_ = br.Conn.Close()
+	logger.Info("[Run] closing msgBroker client connection")
 	logger.Info("[Run] shutting down server")
 	err = httpServer.Shutdown()
 	if err != nil {

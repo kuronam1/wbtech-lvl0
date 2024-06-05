@@ -55,15 +55,17 @@ WHERE order_uid = $1
 
 	CheckCacheQuery = `SELECT EXISTS(SELECT 1 FROM orders)`
 
+	SelectOrdersUIDQuery = `SELECT order_uid FROM orders`
+
 	SelectOrderQueryV2 = `
 SELECT order_id, order_uid, track_number, entry, locale, internal_signature,
        customer_id, delivery_service, shard_key, sm_id, date_created, oof_shard,
-       o.delivery_id, delivery_name, phone, zip, city, address, region, email,
+       d.delivery_id, delivery_name, phone, zip, city, address, region, email,
        p.payment_id, transact, request_id, currency, provider, amount, payment_dt,
        bank, delivery_cost, goods_total, custom_fee
 FROM orders o
          JOIN delivery d on d.delivery_id = o.delivery_id
          JOIN payment p on p.payment_id = o.payment_id
-WHERE order_id = $1
+WHERE order_uid = $1
 `
 )

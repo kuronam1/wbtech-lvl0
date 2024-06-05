@@ -31,8 +31,8 @@ func (h *handler) GetOrder(c *gin.Context) {
 
 	uid, found := c.GetQuery("uid")
 	if !found {
-		c.HTML(http.StatusOK, "", gin.H{
-			"With order": false,
+		c.HTML(http.StatusOK, "index.html", gin.H{
+			"WithOrder": false,
 		})
 		return
 	}
@@ -46,7 +46,7 @@ func (h *handler) GetOrder(c *gin.Context) {
 	}
 
 	c.HTML(http.StatusOK, "index.html", gin.H{
-		"With order": true,
-		"Order":      order,
+		"WithOrder": true,
+		"Order":     order,
 	})
 }

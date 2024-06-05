@@ -3,6 +3,7 @@ package broker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/nats-io/stan.go"
 	"io"
@@ -13,20 +14,19 @@ import (
 	"wbLvL0/internal/storage/orders/models"
 )
 
-type Stan struct {
-	Conn   stan.Conn
-	Logger *slog.Logger
-	Notify chan error
+type Broker interface {
+	Publish(ctx context.Context, subject string)
+	Subscribe(ctx context.Context, subject string, save func(data models.Order) error)
 }
 
-func New(connection stan.Conn, log *slog.Logger) *Stan {
-	broker := &Stan{
+func NewBroker(connection stan.Conn, log *slog.Logger) *Stan {
+	br := &Stan{
 		Conn:   connection,
 		Logger: log,
 		Notify: make(chan error),
 	}
 
-	return broker
+	return br
 }
 
 func (s *Stan) Publish(ctx context.Context, subject string) {
@@ -76,6 +76,7 @@ func (s *Stan) Publish(ctx context.Context, subject string) {
 func (s *Stan) Subscribe(ctx context.Context, subject string, save func(data models.Order) error) {
 	go func() {
 		sub, err := s.Conn.Subscribe(subject, func(msg *stan.Msg) {
+			s.Logger.Info(fmt.Sprintf("recived message from cluster: %s", msg.Subject))
 			order := models.Order{}
 			if err := json.Unmarshal(msg.Data, &order); err != nil {
 				s.Logger.Error("[Stan] error while parsing order", appErrors.WrapLogErr(err))

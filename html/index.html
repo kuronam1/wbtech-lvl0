@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WBlevel0 | Получить данные заказа по uid</title>
+    <link rel="stylesheet" type="text/css" href="../static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Введите uid заказа</h2>
+        <form action="/" method="get">
+            <label for="name">UID:</label>
+            <input type="text" id="name" name="uid" required>
+            <button type="submit">Отправить</button>
+        </form>
+    </div>
+    {{if .WithOrder}}
+    <div class="order">
+        <h2>Ваш заказ:</h2>
+        <ul>
+            <li>{{.Order.OrderUid}}</li>
+            <li>{{.Order.TrackNumber}}</li>
+            <li>{{.Order.Entry}}</li>
+            <li>Delivery:
+                <ul>
+                    <li>{{.Order.Delivery.Name}}</li>
+                    <li>{{.Order.Delivery.Phone}}</li>
+                    <li>{{.Order.Delivery.Zip}}</li>
+                    <li>{{.Order.Delivery.City}}</li>
+                    <li>{{.Order.Delivery.Address}}</li>
+                    <li>{{.Order.Delivery.Region}}</li>
+                    <li>{{.Order.Delivery.Email}}</li>
+                </ul>
+            </li>
+            <li>Payment:
+                <ul>
+                    <li>{{.Order.Payment.Transaction}}</li>
+                    <li>{{.Order.Payment.RequestId}}</li>
+                    <li>{{.Order.Payment.Currency}}</li>
+                    <li>{{.Order.Payment.Provider}}</li>
+                    <li>{{.Order.Payment.Amount}}</li>
+                    <li>{{.Order.Payment.PaymentDt}}</li>
+                    <li>{{.Order.Payment.Bank}}</li>
+                    <li>{{.Order.Payment.DeliveryCost}}</li>
+                    <li>{{.Order.Payment.GoodsTotal}}</li>
+                    <li>{{.Order.Payment.CustomFee}}</li>
+                </ul>
+            </li>
+            <li>Items:
+                {{range $item := .Order.Items}}
+                <ul>
+                    <li>{{.ChrtId}}</li>
+                    <li>{{.TrackNumber}}</li>
+                    <li>{{.Price}}</li>
+                    <li>{{.Rid}}</li>
+                    <li>{{.Name}}</li>
+                    <li>{{.Sale}}</li>
+                    <li>{{.Size}}</li>
+                    <li>{{.TotalPrice}}</li>
+                    <li>{{.NmId}}</li>
+                    <li>{{.Brand}}</li>
+                    <li>{{.Status}}</li>
+                </ul>>
+                {{end}}
+            </li>
+            <li>{{.Order.Locale}}</li>
+            <li>{{.Order.InternalSignature}}</li>
+            <li>{{.Order.CustomerId}}</li>
+            <li>{{.Order.DeliveryService}}</li>
+            <li>{{.Order.Shardkey}}</li>
+            <li>{{.Order.SmId}}</li>
+            <li>{{.Order.DateCreated}}</li>
+            <li>{{.Order.OofShard}}</li>
+        </ul>
+    </div>
+    {{end}}
+</body>
+</html>

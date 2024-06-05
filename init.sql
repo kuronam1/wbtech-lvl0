@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS delivery (
     delivery_id SERIAL PRIMARY KEY,
     delivery_name VARCHAR NOT NULL,
     phone VARCHAR NOT NULL,
-     zip VARCHAR NOT NULL,
+    zip VARCHAR NOT NULL,
     city VARCHAR NOT NULL,
     address VARCHAR NOT NULL,
     region VARCHAR NOT NULL,
